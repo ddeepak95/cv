@@ -1,129 +1,102 @@
-name: Build LaTeX and publish PDF release (dated + stable link)
-
-on:
-  push:
-    branches:
-      - main
-    paths:
-      - '**.tex'
-      - '**.bib'
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-jobs:
-  build-and-release:
-    runs-on: ubuntu-latest
-    env:
-      GITHUB_API_BASE: https://api.github.com
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Compile LaTeX to PDF
-        uses: xu-cheng/latex-action@v2
-        with:
-          root_file: main.tex
-
-      - name: Prepare filenames (dated + stable)
-        id: names
-        run: |
-          # UTC date; change format if you prefer local timezone
-          DATE=$(date -u +'%Y-%m-%d')
-          DATED_NAME="deepak-cv-${DATE}.pdf"
-          STABLE_NAME="deepak-cv.pdf"
-
-          # Ensure compiled PDF exists
-          if [ ! -f main.pdf ]; then
-            echo "ERROR: main.pdf not found"; ls -la
-            exit 1
-          fi
-
-          # create both files (dated copy + stable name)
-          cp -f main.pdf "${DATED_NAME}"
-          cp -f main.pdf "${STABLE_NAME}"
-
-          # expose values to later steps
-          echo "DATE=${DATE}" >> $GITHUB_OUTPUT
-          echo "DATED_NAME=${DATED_NAME}" >> $GITHUB_OUTPUT
-          echo "STABLE_NAME=${STABLE_NAME}" >> $GITHUB_OUTPUT
-          ls -la "${DATED_NAME}" "${STABLE_NAME}"
-
-      - name: Create or update GitHub Release (pdf-latest)
-        id: create_release
-        uses: actions/create-release@v1
+      - name: Create or get release (by tag)
+        id: release_info
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: pdf-latest
-          release_name: PDF build - pdf-latest
-          body: "Automatically built PDF from LaTeX (compiled by GitHub Actions)."
-          draft: false
-          prerelease: false
+          REPO: ${{ github.repository }}
+          TAG: pdf-latest
+          NAME: "PDF build - pdf-latest"
+          BODY: "Automatically built PDF from LaTeX (compiled by GitHub Actions)."
+        run: |
+          set -euo pipefail
+          API="https://api.github.com"
+          auth_header="Authorization: token ${GITHUB_TOKEN}"
+          # try to get release by tag
+          echo "Checking for existing release with tag ${TAG}..."
+          resp=$(curl -s -H "${auth_header}" -H "Accept: application/vnd.github+json" \
+            "${API}/repos/${REPO}/releases/tags/${TAG}" || true)
+          # if it contains 'Not Found' then create it
+          if echo "$resp" | jq -e '.id' >/dev/null 2>&1; then
+            release_id=$(echo "$resp" | jq -r '.id')
+            upload_url=$(echo "$resp" | jq -r '.upload_url')
+            echo "Found existing release id=${release_id}"
+          else
+            echo "Release not found; creating release tag ${TAG}..."
+            create_payload=$(jq -n --arg t "$TAG" --arg n "$NAME" --arg b "$BODY" \
+              '{ tag_name: $t, name: $n, body: $b, draft: false, prerelease: false }')
+            created=$(curl -s -X POST -H "${auth_header}" -H "Accept: application/vnd.github+json" \
+              -d "$create_payload" "${API}/repos/${REPO}/releases")
+            release_id=$(echo "$created" | jq -r '.id')
+            upload_url=$(echo "$created" | jq -r '.upload_url')
+            if [ "$release_id" = "null" ] || [ -z "$release_id" ]; then
+              echo "Failed to create release. Response:"
+              echo "$created"
+              exit 1
+            fi
+            echo "Created release id=${release_id}"
+          fi
+
+          # export outputs for later steps (use GITHUB_OUTPUT)
+          echo "upload_url=${upload_url}" >> "$GITHUB_OUTPUT"
+          echo "release_id=${release_id}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload dated asset (deepak-cv-YYYY-MM-DD.pdf)
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPLOAD_URL: ${{ steps.release_info.outputs.upload_url }}
+        run: |
+          set -euo pipefail
+          DATED_NAME="${{ steps.names.outputs.DATED_NAME }}"
+          base_upload_url="${UPLOAD_URL%\{*}"
+          echo "Uploading ${DATED_NAME}..."
+          # use curl to upload binary; spaces in filename handled by urlencode name param
+          # compute encoded name (simple: use jq -sRr @uri for safe encoding)
+          encoded_name=$(printf '%s' "$DATED_NAME" | jq -sRr @uri)
+          curl -s -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Content-Type: application/pdf" \
+            --data-binary @"${DATED_NAME}" \
+            "${base_upload_url}?name=${encoded_name}"
 
       - name: Delete existing stable asset (if exists)
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          RELEASE_ID: ${{ steps.create_release.outputs.id }}
+          RELEASE_ID: ${{ steps.release_info.outputs.release_id }}
           STABLE_NAME: ${{ steps.names.outputs.STABLE_NAME }}
         run: |
-          # List release assets and delete any matching STABLE_NAME
+          set -euo pipefail
+          API="https://api.github.com"
+          auth_header="Authorization: token ${GITHUB_TOKEN}"
           echo "Checking for existing asset named '${STABLE_NAME}' on release id ${RELEASE_ID}..."
-          assets_url="${GITHUB_API_BASE}/repos/${REPO}/releases/${RELEASE_ID}/assets"
-          assets_json=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
-                              -H "Accept: application/vnd.github+json" \
-                              "${assets_url}")
-          # find asset id by name
-          asset_id=$(echo "$assets_json" | jq -r --arg name "$STABLE_NAME" '.[] | select(.name==$name) | .id' || true)
+          assets=$(curl -s -H "${auth_header}" -H "Accept: application/vnd.github+json" \
+                    "${API}/repos/${REPO}/releases/${RELEASE_ID}/assets")
+          asset_id=$(echo "$assets" | jq -r --arg name "$STABLE_NAME" '.[] | select(.name==$name) | .id' || true)
           if [ -n "$asset_id" ] && [ "$asset_id" != "null" ]; then
             echo "Found existing asset id $asset_id -> deleting..."
-            curl -s -X DELETE -H "Authorization: token ${GITHUB_TOKEN}" \
-                 -H "Accept: application/vnd.github+json" \
-                 "${GITHUB_API_BASE}/repos/${REPO}/releases/assets/${asset_id}" \
-                 -o /dev/null -w "HTTP %{http_code}\n"
+            curl -s -X DELETE -H "${auth_header}" -H "Accept: application/vnd.github+json" \
+              "${API}/repos/${REPO}/releases/assets/${asset_id}" \
+              -o /dev/null -w "HTTP %{http_code}\n"
             echo "Deleted asset id $asset_id"
           else
             echo "No existing stable asset to delete."
           fi
 
-      - name: Upload dated asset (deepak-cv-YYYY-MM-DD.pdf)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          UPLOAD_URL: ${{ steps.create_release.outputs.upload_url }}
-          REPO: ${{ github.repository }}
-        run: |
-          DATED_NAME="${{ steps.names.outputs.DATED_NAME }}"
-          # upload_url has a template like: https://uploads.github.com/...{?name,label}
-          # strip the template part and append ?name=...
-          base_upload_url="${UPLOAD_URL%\{*}"
-          echo "Uploading ${DATED_NAME} to release..."
-          curl -s -X POST \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Content-Type: application/pdf" \
-            --data-binary @"${DATED_NAME}" \
-            "${base_upload_url}?name=$(basename "${DATED_NAME")""
-
       - name: Upload stable asset (deepak-cv.pdf) — stable download link
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          UPLOAD_URL: ${{ steps.create_release.outputs.upload_url }}
+          UPLOAD_URL: ${{ steps.release_info.outputs.upload_url }}
         run: |
+          set -euo pipefail
           STABLE_NAME="${{ steps.names.outputs.STABLE_NAME }}"
           base_upload_url="${UPLOAD_URL%\{*}"
-          echo "Uploading ${STABLE_NAME} to release (this will be the stable public asset)..."
+          encoded_name=$(printf '%s' "$STABLE_NAME" | jq -sRr @uri)
+          echo "Uploading ${STABLE_NAME} as the stable asset..."
           curl -s -X POST \
             -H "Authorization: token ${GITHUB_TOKEN}" \
             -H "Content-Type: application/pdf" \
             --data-binary @"${STABLE_NAME}" \
-            "${base_upload_url}?name=$(basename "${STABLE_NAME")""
-
-      - name: Output download URL
-        run: |
-          echo "Stable download URL:"
-          echo "https://github.com/${{ github.repository }}/releases/latest/download/${{ steps.names.outputs.STABLE_NAME }}"
+            "${base_upload_url}?name=${encoded_name}"

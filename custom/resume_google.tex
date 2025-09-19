@@ -9,7 +9,7 @@
     right=2 cm, % seperation between body and page edge from the right
     footskip=1.0 cm, % seperation between body and footer
     % showframe % for debugging 
-]{geometry} % for adjusting page  
+]{geometry} % for adjusting page geometry
 \usepackage{titlesec} % for customizing section titles
 \usepackage{titling} % for customizing the title
 \usepackage{tabularx} % for making tables with fixed width columns
@@ -46,7 +46,7 @@
 % Ensure that generate pdf is machine readable/ATS parsable:
 \ifPDFTeX
     \input{glyphtounicode}
-    \pdfgentounicode=1   
+    \pdfgentounicode=1
     \usepackage[T1]{fontenc}
     \usepackage[utf8]{inputenc}
 \fi
@@ -289,7 +289,7 @@
     \section{Research Interests}
         \begin{spacing}{1.3}
         \begin{onecolentry}
-            My research is focused on \textbf{developing and evaluating culturally-aligned AI technologies} for high-impact areas such as education.  Broadly, I am interested in \textbf{Human-Computer Interaction}, \textbf{Human-AI Interaction}, \textbf{Responsible AI}, \textbf{Learning Sciences}, and \textbf{ICT for Development}. 
+            My research is focused on \textbf{developing and evaluating culturally-aware AI technologies} to improve the quality of learning equitably.  Broadly, I am interested in \textbf{Human-Computer Interaction}, \textbf{Human-AI Interaction}, \textbf{Responsible AI}, \textbf{Learning Sciences}, and \textbf{ICT for Development}. 
         \end{onecolentry}
         \end{spacing}
     \vspace{-0.11 cm}
@@ -304,12 +304,23 @@
     \section{Ongoing Research Projects}
 
         
-        \researchprojectentry{Evaluation of Shiksha Copilot: An LLM-based tool for Learning Content Generation}{Cornell University \& Microsoft Research}
+        \researchprojectentry{Evaluation of Shiksha Copilot: An AI-tool for Lesson Content Generation}{Cornell University \& Microsoft Research}
             \begin{onecolentry}
                 \begin{highlights}
                     \item Designed and executed a large-scale mixed-methods study to assess the effectiveness and impact of Shiksha Copilot, an AI tool for generating learning content for Indian school teachers.
                 \end{highlights}
             \end{onecolentry}
+
+        \itemspacing
+            
+            
+        \researchprojectentry{AI-tutoring for non-English Speakers}{Cornell University \& Microsoft Research}
+            \begin{onecolentry}
+                \begin{highlights}
+                    \item Designing a mixed-methods study to evaluate the capabilities of different Large Language Models and Small Language Models in tutoring non-English speaking students in their local languages.
+                \end{highlights}
+            \end{onecolentry}
+            
 
     \section{Experience}
         \experienceentry{Research Assistant}{Stanford University}{Jun'23 - May'24}
@@ -388,9 +399,9 @@
         \begin{highlights}
             \item \textbf{Web Development}: Next.js, React, Streamlit, Firebase
             \item \textbf{Scripting \& Automation}: Python, Node.js, Appscript, AWS Lambda
+            \item \textbf{AI Frameworks}: LlamaIndex, Langchain, Autogen            
             \item \textbf{UI/UX Design}: Figma, Adobe XD, Balsamiq
             \item \textbf{Prototyping}: Lasercutting, 3D Printing, Raspberry Pi, Arduino
-            \item \textbf{Content Creation}: Photoshop, Illustrator, InDesign, Premiere Pro, After Effects, Audition, La\TeX
         \end{highlights} 
     \end{onecolentry}
 
@@ -402,6 +413,7 @@
                 \begin{highlights}
                     \item  Designed and developed the CESTA Digital Anthology System from scratch to facilitate the publication of Stanford Center for Spatial and Textual Analysis's scientific works by both faculty and students.
                     \item Architected a Quarto-based system integrated with GitHub and designed processes that enable both technical and non-technical authors to contribute to the anthology.
+                    \item Mentored over 30 undergraduate interns to contribute to the first edition of digital anthology.
                 \end{highlights}
             \end{onecolentry}
         
@@ -427,11 +439,12 @@
 
 
     \section{Service}
-        \serviceentry{Student Volunteer}{Thought Summit: LLMs \& Society}{2025}
-        \serviceentry{Reviewer}{ACM CHI}{2025}
+
+        \serviceentry{Reviewer}{ACM CHI}{2024-2025}
+        \serviceentry{Student Volunteer}{Thought Summit: LLMs and Society}{2024-2025}
         \serviceentry{Research Consultant}{Pratham Education Foundation}{2023-2024}
         \serviceentry{Organizer, GSE Design Collective}{Stanford University}{2022-2023}
-        \serviceentry{Impact Officer, Global Shapers Hub - Chennai}{World Economic Forum}{2020-2021}  
+        \serviceentry{Impact Officer, Global Shapers Hub - Chennai}{World Economic Forum}{2020-2021}
 
 
     
