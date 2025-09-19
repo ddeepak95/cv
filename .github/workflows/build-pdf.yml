@@ -1,48 +1,57 @@
-name: Build LaTeX and commit PDF
+name: Build LaTeX and publish PDF release
 
 on:
   push:
+    branches:
+      - main           # run on pushes to main; adjust if you prefer another branch
     paths:
       - '**.tex'
       - '**.bib'
-      - 'latex/**'        # adjust to match your project structure
-  workflow_dispatch:
+  workflow_dispatch:   # allows manual trigger
+
+permissions:
+  contents: write      # needed to create releases and upload assets
 
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
+
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0   # so we can push commits
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Set up TeXLive and compile
-      uses: xu-cheng/latex-action@v2
-      with:
-        root_file: main.tex   # <- change to your main tex filename
+      - name: Compile LaTeX to PDF
+        uses: xu-cheng/latex-action@v2
+        with:
+          root_file: main.tex   # <- change this to your main .tex filename (e.g. thesis.tex)
 
-    - name: Verify PDF exists
-      run: |
-        if [ ! -f main.pdf ]; then
-          echo "PDF not produced!"; ls -la
-          exit 1
-        fi
+      - name: Verify PDF produced
+        run: |
+          if [ ! -f main.pdf ]; then
+            echo "ERROR: main.pdf not found"; ls -la
+            exit 1
+          fi
 
-    - name: Commit and push generated PDF
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        # move or copy pdf to desired location
-        mkdir -p build
-        cp -f main.pdf build/main.pdf
-        git add build/main.pdf
-        # check if changes
-        if git diff --cached --quiet; then
-          echo "No PDF changes to commit."
-        else
-          git commit -m "Build: update PDF (compiled by GitHub Actions)"
-          git push
-        fi
+      - name: Create or update GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: pdf-latest                # tag associated with the release (will be created if missing)
+          release_name: PDF build - pdf-latest
+          body: "Automatically built PDF from LaTeX (compiled by GitHub Actions)."
+          draft: false
+          prerelease: false
+
+      - name: Upload PDF to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./deepak-cv.pdf
+          asset_name: deepak-cv.pdf
+          asset_content_type: application/pdf
